@@ -937,6 +937,23 @@ class LivingLifePage : public GamePage, public ActionListener {
         char mPlayerInFlight;
 
         Picker mObjectPicker;
+        
+        // FOVMOD NOTE:  Change 1/1 - Take these changes during the merge process
+        void changeHUDFOV( float newScale = 1.0f );
+        void changeFOV( float newScale = 1.0f );
+        void calcOffsetHUD();
+        void calcFontScale( float newScale, Font* font );
+
+        // NAMEMOD NOTE:  Change 1/1 - Take these lines during the merge process
+        const char *findRandomFirstName( char *inString );
+        const char *findRandomLastName( char *inString );
+
+        // LINEAGEFERTILITYMOD NOTE:  Change 1/1 - Take these changes during the merge process
+        void lineageFertilityPanel( LiveObject* ourLiveObject, char displayPanel = true );
+        char* getFertilityStatus( LiveObject* targetObject );
+
+        // AGEMOD NOTE:  Change 1/1 - Take these changes during the merge process
+        void agePanel( LiveObject* ourLiveObject, char displayPanel = true );
 
     };
 

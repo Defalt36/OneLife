@@ -94,6 +94,8 @@ double secondsPerYear = 60.0;
 #define PERSON_OBJ_ID 12
 
 
+#include "../gameSource/ageControl.h"
+
 int minPickupBabyAge = 10;
 
 int babyAge = 5;
@@ -102,12 +104,14 @@ int babyAge = 5;
 int defaultActionAge = 3;
 
 
-double forceDeathAge = 120;
 // UncleGus Custom Variables
 double adultAge = 20;
 double oldAge = 104;
 double fertileAge = 14;
 // End UncleGus Custom Variables
+double forceDeathAge = age_death;
+
+
 double minSayGapInSeconds = 1.0;
 
 int maxLineageTracked = 20;
@@ -2444,7 +2448,8 @@ char isFertileAge( LiveObject *inPlayer ) {
                     
     char f = getFemale( inPlayer );
                     
-    if( age >= fertileAge && age <= oldAge && f ) {
+//    if( age >= fertileAge && age <= oldAge && f ) { //2hol
+    if( age >= age_fertile && age <= age_old && f ) { //awbz
         return true;
         }
     else {
@@ -2460,7 +2465,8 @@ int computeFoodCapacity( LiveObject *inPlayer ) {
     
     int returnVal = 0;
     
-    if( ageInYears < oldAge ) {
+//    if( ageInYears < oldAge ) { //2hol
+    if( ageInYears < (age_old + 4) ) { //awbz
         
         if( ageInYears > adultAge - 4 ) {
             ageInYears = adultAge - 4;
@@ -2469,8 +2475,8 @@ int computeFoodCapacity( LiveObject *inPlayer ) {
         returnVal = ageInYears + 4;
         }
     else {
-        // food capacity decreases as we near death
-        int cap = forceDeathAge - ageInYears + 4;
+        // food capacity decreases as we near age_death
+        int cap = age_death - ageInYears + 4;
         
         if( cap < 4 ) {
             cap = 4;
@@ -2484,7 +2490,7 @@ int computeFoodCapacity( LiveObject *inPlayer ) {
 
             // for now, let's make it quadratic
             double maxLostBars = 
-                16 - 16 * pow( inPlayer->fitnessScore / 60.0, 2 );
+                16 - 16 * pow( inPlayer->fitnessScore / age_death, 2 );
             
             if( lostBars > maxLostBars ) {
                 lostBars = maxLostBars;
@@ -6231,7 +6237,7 @@ int processLoggedInPlayer( char inAllowReconnect,
         newObject.isEve = true;
         newObject.lineageEveID = newObject.id;
         
-        newObject.lifeStartTimeSeconds -= 14 * ( 1.0 / getAgeRate() );
+        newObject.lifeStartTimeSeconds -= age_fertile * ( 1.0 / getAgeRate() );
 
         
         int femaleID = getRandomFemalePersonObject();
@@ -10194,6 +10200,14 @@ static char isAccessBlocked( LiveObject *inPlayer,
 	
 	
 
+void sanityCheckSettings(const char *inSettingName) {
+    FILE *fp = SettingsManager::getSettingsFile( inSettingName, "r" );
+	if( fp == NULL ) {
+		fp = SettingsManager::getSettingsFile( inSettingName, "w" );
+	}
+    fclose( fp );
+}
+
 
 int main() {
 
@@ -10264,6 +10278,13 @@ int main() {
     
 
 
+
+    sanityCheckSettings( "lifespanMultiplier" );
+    lifespan_multiplier = SettingsManager::getFloatSetting( "lifespanMultiplier" , 1.0f );
+    SettingsManager::setSetting( "lifespanMultiplier" , lifespan_multiplier );
+    age_old = (int)( 40 * lifespan_multiplier );
+    age_death = (int)( 60 * lifespan_multiplier );
+    forceDeathAge = age_death;
 
     minFoodDecrementSeconds = 
         SettingsManager::getFloatSetting( "minFoodDecrementSeconds", 5.0f );
