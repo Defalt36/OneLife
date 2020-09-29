@@ -4,7 +4,6 @@ int dataVersionNumber = 0;
 int binVersionNumber = versionNumber;
 
 
-int expectedVersionNumber = 0;
 // NOTE that OneLife doesn't use account hmacs
 
 // retain an older version number here if server is compatible
@@ -215,30 +214,29 @@ void setFOVScale() {
     sanityCheckSettings( "fovPreferredMin" );
     sanityCheckSettings( "fovPreferredMax" );
 	sanityCheckSettings( "hudDrawMode" );
+	sanityCheckSettings( "scaleMode" );
 
 	gui_hud_mode = SettingsManager::getIntSetting( "hudDrawMode", 0 );
 	if( gui_hud_mode < 0 ) gui_hud_mode = 0;
 	else if( gui_hud_mode > 2 ) gui_hud_mode = 2;
 	SettingsManager::setSetting( "hudDrawMode", gui_hud_mode );
 
-    gui_fov_target_scale_hud = SettingsManager::getFloatSetting( "fovScaleHUD", 1.0f );
 	if( gui_fov_target_scale_hud < 1.0f ) gui_fov_target_scale_hud = 1.0f;
 	else if( gui_fov_target_scale_hud > 6.0f ) gui_fov_target_scale_hud = 6.0f;
 	SettingsManager::setSetting( "fovScaleHUD", gui_fov_target_scale_hud );
 	
-    gui_fov_scale = SettingsManager::getFloatSetting( "fovScale", 1.0f );
     if( gui_fov_scale < 1.0f ) gui_fov_scale = 1.0f;
 	else if ( gui_fov_scale > 6.0f ) gui_fov_scale = 6.0f;
 	SettingsManager::setSetting( "fovScale", gui_fov_scale );
 
-    gui_fov_preferred_min_scale = SettingsManager::getFloatSetting( "fovPreferredMin", 1.5f );
+    gui_fov_preferred_min_scale = SettingsManager::getFloatSetting( "fovPreferredMin", 1.0f );
     if( ! gui_fov_preferred_min_scale || gui_fov_preferred_min_scale < 1 )
 		gui_fov_preferred_min_scale = 1.f;
     else if ( gui_fov_preferred_min_scale > 6 )
 		gui_fov_preferred_min_scale = 6.f;
 	SettingsManager::setSetting( "fovPreferredMin", gui_fov_preferred_min_scale );
 
-    gui_fov_preferred_max_scale = SettingsManager::getFloatSetting( "fovPreferredMax", 3.0f );
+    gui_fov_preferred_max_scale = SettingsManager::getFloatSetting( "fovPreferredMax", 2.0f );
     if( ! gui_fov_preferred_max_scale || gui_fov_preferred_max_scale < 1 )
 		gui_fov_preferred_max_scale = 1.f;
 	else if ( gui_fov_preferred_max_scale > 6 )
@@ -248,8 +246,10 @@ void setFOVScale() {
 	gui_fov_scale_hud = gui_fov_scale / gui_fov_target_scale_hud;
     gui_fov_offset_x = (int)(((1280 * gui_fov_target_scale_hud) - 1280)/2);
     gui_fov_offset_y = (int)(((720 * gui_fov_target_scale_hud) - 720)/2);
+	
     viewWidth = 1280 * gui_fov_scale;
     viewHeight = 720 * gui_fov_scale;
+	
     visibleViewWidth = viewWidth;
 }
 
@@ -382,7 +382,7 @@ const char *getWindowTitle() {
 
 const char *getAppName() {
     // NAMEMOD NOTE:  Change 2/5 - Take these lines during the merge process
-    return "OneLife+";
+    return "OneLife";
     }
 
 int getAppVersion() {
@@ -470,24 +470,6 @@ static void updateDataVersionNumber() {
             }
         }
     }
-
-
-static void updateExpectedVersionNumber() {
-    File file( NULL, "binary.txt" );
-
-    if( file.exists() ) {
-        char *contents = file.readFileContents();
-        
-        if( contents != NULL ) {
-            sscanf( contents, "v%d", &expectedVersionNumber );
-            }
-
-            delete [] contents;
-        }
-    }
-
-
-
 
 #define SETTINGS_HASH_SALT "another_loss"
 
@@ -595,7 +577,6 @@ void initFrameDrawer( int inWidth, int inHeight, int inTargetFrameRate,
     initAgeControl();
     
     updateDataVersionNumber();
-    updateExpectedVersionNumber();
 
 
     AppLog::printOutNextMessage();

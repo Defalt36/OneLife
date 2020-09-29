@@ -28,19 +28,8 @@ float lifespan_multiplier = 1.0f;
 int age_baby = 5;
 int age_fertile = 14;
 int age_mature = 20;
-int age_old = (int)( 40 * lifespan_multiplier );
-int age_death = (int)( 60 * lifespan_multiplier );
-
-
-void sanityCheckSettings() {
-    FILE *fp = SettingsManager::getSettingsFile( "lifespanMultiplier", "r" );
-	if( fp == NULL ) {
-		fp = SettingsManager::getSettingsFile( "lifespanMultiplier", "w" );
-        SettingsManager::setSetting( "lifespanMultiplier", 1.0f );
-	}
-    fclose( fp );
-}
-
+int age_old = 104;
+int age_death = 120;
 
 void initAgeControl() {
     babyHeadDownFactor = 
@@ -57,10 +46,6 @@ void initAgeControl() {
 
     initAgeScaling();
     
-    sanityCheckSettings();
-    lifespan_multiplier = SettingsManager::getFloatSetting( "lifespanMultiplier", 1.0f );
-    age_old = (int)( 40 * lifespan_multiplier );
-    age_death = (int)( 60 * lifespan_multiplier );
     }
 
 

@@ -16,6 +16,8 @@ int versionNumber = 60;
 
 #include "minorGems/graphics/Color.h"
 
+
+
 // for testing
 char fillAbstracts = false;
 
@@ -41,7 +43,6 @@ int accountHmacVersionNumber = 0;
 
 
 #include "minorGems/util/log/AppLog.h"
-#include "minorGems/util/SettingsManager.h"
 
 
 
@@ -121,11 +122,10 @@ GamePage *currentGamePage = NULL;
 doublePair lastScreenViewCenter = {0, 0 };
 
 
-float currentScale = SettingsManager::getFloatSetting( "editorFovScale", 1.0f );
 
 // world width of one view
-double viewWidth = 1024 * currentScale;
-double viewHeight = 600 * currentScale;
+double viewWidth = 1920;
+double viewHeight = 1080;
 
 // fraction of viewWidth visible vertically (aspect ratio)
 double viewHeightFraction;
@@ -161,6 +161,8 @@ char *serverAddress = NULL;
 int serverPort;
 
 int serverSocket = -1;
+
+
 
 char doesOverrideGameImageSize() {
     return true;

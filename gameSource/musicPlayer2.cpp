@@ -86,7 +86,7 @@ static int startNextAgeFileRead( double inAge ) {
     double displayAgeNextMusicDone = nextFiveBlock * 5;
 
     //if( displayAgeNextMusicDone == 60 ) { //2hol
-    if( ageNextMusicDone == age_death ) { //awbz
+    if( displayAgeNextMusicDone == age_death ) { //awbz
         // special case, end of life
         // have music end 5 seconds after end of life
         // so there's an ubrupt cut off of the music with the YOU DIED
