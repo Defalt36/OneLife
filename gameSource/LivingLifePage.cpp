@@ -57,6 +57,8 @@
 
 static ObjectPickable objectPickable;
 
+#include "lightning.h"
+
 #include "minitech.h"
 
 #define MAP_D 64
@@ -139,6 +141,13 @@ doublePair LivingLifePage::minitechGetLastScreenViewCenter() { return lastScreen
 
 static char shouldMoveCamera = true;
 
+//this will be overrided by the server equivalent
+static int night_frequency = 36;
+
+static int daylightMode = -1;
+
+static int requestedServerTime = -1;
+static int serverTimeOffset = 0;
 
 extern double viewWidth;
 extern double viewHeight;
@@ -1028,6 +1037,7 @@ typedef enum messageType {
     FORCED_SHUTDOWN,
     GLOBAL_MESSAGE,
     PONG,
+	STIME,
     COMPRESSED_MESSAGE,
     UNKNOWN
     } messageType;
@@ -1137,6 +1147,9 @@ messageType getMessageType( char *inMessage ) {
         }
     else if( strcmp( copy, "PONG" ) == 0 ) {
         returnValue = PONG;
+        }
+    else if( strcmp( copy, "STIME" ) == 0 ) {
+        returnValue = STIME;
         }
     else if( strcmp( copy, "SHUTDOWN" ) == 0 ) {
         returnValue = SHUTDOWN;
@@ -1376,7 +1389,8 @@ char *getNextServerMessage() {
                 else if( t == MAP_CHUNK ||
                          t == PONG ||
                          t == FLIGHT_DEST ||
-                         t == PHOTO_SIGNATURE ) {
+                         t == PHOTO_SIGNATURE ||
+						 t == STIME) {
                     // map chunks are followed by compressed data
                     // they cannot be queued
                     
@@ -5074,7 +5088,56 @@ void LivingLifePage::draw( doublePair inViewCenter,
         return;
         }
 
-
+	//only load once
+	if (daylightMode == -1) {
+		daylightMode = SettingsManager::getIntSetting( "daylightMode", 1 );
+	}
+	
+	//player is in tutorial, load again next time
+	if (mTutorialNumber > 0) {
+		daylightMode = -1;
+	}
+	
+	int game_time = fmod(game_getCurrentTime(), 86400);
+	int time_current;
+	if (daylightMode == 0 || daylightMode == 1) {
+		char *timeMessage = autoSprintf( "RTIME 0 0 0#");
+		if (requestedServerTime != -1 ) {
+			time_current = game_time + serverTimeOffset;
+			
+			//three hundred seconds are equivalent to 5 minutes
+			if (time_current - requestedServerTime >= 300) {
+				printf("\nRequesting server time. Calculated: %d\n", time_current);
+				printf("Current night frequency: %d\n", night_frequency);
+				sendToServerSocket( timeMessage );
+				delete [] timeMessage;
+			}
+		}
+		else {
+			sendToServerSocket( timeMessage );
+			delete [] timeMessage;
+		}
+	}
+	else if (daylightMode == 2) {
+		//always night
+		time_current = 0;
+		night_frequency = 1;
+	}
+	else if (daylightMode == 3) {
+		//night in the game if it is night outside
+		int timezone = SettingsManager::getIntSetting( "timezone", 0 );
+		time_current = fmod(game_time + (timezone * 3600), 86400);
+		night_frequency = 1;
+	}
+	else if (daylightMode == 4) {
+		//client side night only; each 40 minutes
+		int timezone = SettingsManager::getIntSetting( "timezone", 0 );
+		night_frequency = 36;
+		
+		//time zone becomes game time offset (the game world have different timezones xd)
+		time_current = fmod(game_time + (timezone * 3600)/night_frequency, 86400);
+	}
+	
     //setDrawColor( 1, 1, 1, 1 );
     //drawSquare( lastScreenViewCenter, viewWidth );
     
@@ -5202,6 +5265,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
                 }
             else if( b == -1 ) {
                 // unknown biome image at end
+				setDrawColor( 0.1, 0.1, 0.1, 1 );
                 s = groundSprites[ groundSpritesArraySize - 1 ];
                 }
             
@@ -6506,8 +6570,30 @@ void LivingLifePage::draw( doublePair inViewCenter,
             drawObjectAnim( heldToDrawOnTop.getElementDirect( i ) );
             }
 
-
-
+		//shadow cast by objects; shadow only apply to "ground level" objects
+		if ( daylightMode > 0 ) {
+			for( int x=xStart; x<=xEnd; x++ ) {
+				int worldX = x + mMapOffsetX - mMapD / 2;
+				
+				float darkness = DayLight(time_current, night_frequency);
+				ColorInfo c = getDrawSpecifics(worldX, worldY, darkness, game_time);
+				if (c.shadow > 0) {
+					float cell_darkness = 0.35f * darkness;
+					if (!c.additive) {
+						cell_darkness = c.a;
+					}
+					//shadow acts like an extra overlay
+					float shadow_intensity = ((c.shadow*(1-cell_darkness))/(c.shadow+2))*darkness;
+					setDrawColor( 0, 0, 0, shadow_intensity );
+					doublePair pos;
+					pos.x = worldX * CELL_D;
+					pos.y = worldY * CELL_D;
+					drawSquare( pos, CELL_D * .5 );
+				}
+			}
+		}
+		
+		
         // then permanent, non-container, wall objects
         for( int x=xStart; x<=xEnd; x++ ) {
             int mapI = y * mMapD + x;
@@ -6788,6 +6874,162 @@ void LivingLifePage::draw( doublePair inViewCenter,
     int screenGridOffsetX = lrint( lastScreenViewCenter.x / CELL_D );
     int screenGridOffsetY = lrint( lastScreenViewCenter.y / CELL_D );
     
+	//populates lists
+	if ( daylightMode > 0 ) {
+		
+		
+		//map light sources and blockers
+		for (int y = yEnd; y >= yStart; y--) {
+			int worldY = y + mMapOffsetY - mMapD / 2;
+
+			for (int x = xStart; x <= xEnd; x++) {
+				int mapI = y * mMapD + x;
+				int worldX = x + mMapOffsetX - mMapD / 2;
+
+				int lightValue = 0;
+				bool isBlocker = false;
+				
+				if (mMap[mapI] > 0) {
+					ObjectRecord* o = getObject(mMap[mapI]);
+					lightValue = o->heatValue;
+					if (o->permanent && o->blocksWalking) {
+						isBlocker = true;
+					}
+					
+					//contained light sources
+					if( mMapContainedStacks[mapI].size() > 0 ) {
+						int *inContained = mMapContainedStacks[mapI].getElementArray();
+						SimpleVector<int> *inSubContained = mMapSubContainedStacks[mapI].getElementArray();
+						
+						for( int i=0; i<mMapContainedStacks[mapI].size(); i++ ) {
+							ObjectRecord *contained = getObject(inContained[i]);
+							int currentLightValue = contained->heatValue;
+							currentLightValue -= 1; //contained gives less light
+							
+							//subcontained light sources
+							if( inSubContained != NULL && inSubContained[i].size() > 0 ) {
+								for( int s=0; s<inSubContained[i].size(); s++ ) {
+									ObjectRecord *subContained = getObject(inSubContained[i].getElementDirect(s));
+									int tempLightValue = subContained->heatValue;
+									tempLightValue -= 2; //subcontained gives even less light
+									if (tempLightValue > currentLightValue) {
+										currentLightValue = tempLightValue;
+									}
+								}
+							}
+							if (currentLightValue > lightValue) {
+								lightValue = currentLightValue;
+							}
+						}
+					}
+				}
+				
+				if (lightValue > 1) {
+					lightValue = lightValue > 3 ? lightValue : 3;
+				}
+				updateLightBlocker(worldX, worldY, isBlocker);
+				updateLightSource(worldX, worldY, lightValue);
+			}
+		}
+		
+		
+		//actor light sources
+		for (int i = 0; i < gameObjects.size(); i++) {
+
+			LiveObject* o = gameObjects.getElement(i);
+
+			if (o->heldByAdultID != -1) {
+				// held by someone else, ignore
+				continue;
+			}
+
+			int heldLightValue = 0;
+			if (o->holdingID != 0) {
+				
+				//held light sources
+				if (o->holdingID > 0) {
+					heldLightValue = getObject(o->holdingID)->heatValue;
+					if ( heldLightValue > 0 ) {
+						heldLightValue += 1; //off the ground gives more light
+					}
+				}
+				
+				//contained held light sources
+				if (o->numContained > 0) {
+					for( int i=0; i< o->numContained; i++ ) {
+						ObjectRecord *contained = getObject(o->containedIDs[i]);
+						int currentLightValue = contained->heatValue;
+						currentLightValue -= 1; //contained gives less light
+						
+						//subcontained held light sources
+						for( int s=0; s<o->subContainedIDs[i].size(); s++ ) {
+							ObjectRecord *subContained = getObject(o->subContainedIDs[i].getElementDirect(s));
+							int tempLightValue = subContained->heatValue;
+							tempLightValue -= 2; //subcontained gives even less light
+							if ( tempLightValue > currentLightValue ) {
+								currentLightValue = tempLightValue;
+							}
+                        }
+						if ( currentLightValue > heldLightValue ) {
+							heldLightValue = currentLightValue;
+						}
+					}
+				}
+			}
+			
+			//clothes and clothes contained light sources
+			for( int c=0; c<NUM_CLOTHING_PIECES; c++ ) {
+				ObjectRecord *cObj = clothingByIndex( o->clothing, c );
+				if( cObj != NULL ) {
+					int currentLightValue = cObj->heatValue;
+					for( int cc=0; cc< o->clothingContained[c].size(); cc++ ) {
+						int ccID = o->clothingContained[c].getElementDirect( cc );
+						int tempLightValue = getObject( ccID )->heatValue;
+						tempLightValue -= 1; //contained gives less light
+						if ( tempLightValue > currentLightValue ) {
+							currentLightValue = tempLightValue;
+						}
+					}
+					if ( currentLightValue > heldLightValue ) {
+						heldLightValue = currentLightValue;
+					}
+				}
+			}
+			
+			int oX = round(o->currentPos.x);
+			int oY = round(o->currentPos.y);
+
+			if (heldLightValue > 1) {
+				heldLightValue = heldLightValue > 3 ? heldLightValue : 3;
+			}
+			updateHeldLightSources(o->displayID, oX, oY, heldLightValue);
+		}
+	}
+	
+	//draw the darkness and gradient created by the light 
+	if ( daylightMode > 0 ) {
+		for( int y=yEnd; y>=yStart; y-- ) {
+			int worldY = y + mMapOffsetY - mMapD / 2;
+			for( int x=xStart; x<=xEnd; x++ ) {
+				int worldX = x + mMapOffsetX - mMapD / 2;
+				float darkness = DayLight(time_current, night_frequency);
+				ColorInfo c = getDrawSpecifics(worldX, worldY, darkness, game_time);
+				if (c.additive) {
+					toggleAdditiveBlend( true );
+					setDrawColor( c.r, c.g, c.b, c.a );
+					toggleAdditiveBlend( false );
+				}
+				else {
+					setDrawColor( c.r, c.g, c.b, c.a );
+				}
+				doublePair pos;
+				pos.x = worldX * CELL_D;
+				pos.y = worldY * CELL_D;
+				drawSquare( pos, CELL_D * .5 );
+			}
+		}
+	}
+	
     // debug overlay
     if( false )
     for( int y=-5; y<=5; y++ ) {
@@ -16765,6 +17007,25 @@ void LivingLifePage::step() {
             if( lastPongReceived == lastPingSent ) {
                 pongDeltaTime = game_getCurrentTime() - pingSentTime;
                 }
+            }
+        else if( type == STIME ) {
+			sscanf( message, "STIME\n%d %d", 
+                    &( requestedServerTime ), &( night_frequency ) );
+			
+			int game_time = fmod(game_getCurrentTime(), 86400);
+			if (requestedServerTime != -1) {
+				//server sent time, resuming client daylight cicle
+				daylightMode = 1;
+				serverTimeOffset = requestedServerTime - game_time;
+				}
+			else {
+				//received a -1 time, disabling night mode
+				daylightMode = 0;
+				//this ensures the client will keep the requesting normally
+				//in case the server configuration changes
+				requestedServerTime = game_time;
+				serverTimeOffset = 0;
+				}
             }
         else if( type == NAMES ) {
             int numLines;
