@@ -7728,7 +7728,7 @@ void LivingLifePage::draw( doublePair inViewCenter,
 	
 	File languagesDir( NULL, "languages" );
 	if ( languagesDir.exists() && languagesDir.isDirectory() ) {
-		File *helpFile = languagesDir.getChildFile( "help_English" );
+		File *helpFile = languagesDir.getChildFile( "help_English.txt" );
 		char *helpFileContents = helpFile->readFileContents();
 		if( helpFileContents != NULL ) {
 			int numLines;
@@ -8452,7 +8452,9 @@ void LivingLifePage::draw( doublePair inViewCenter,
                     }
                 }
             
-
+			if ( showHelp ) {
+				setDrawColor( 1, 1, 1, 0.2f );
+				}
             drawSprite( mHungerSlipSprites[i], slipPos );
             }
         }
@@ -21426,7 +21428,7 @@ void LivingLifePage::keyDown( unsigned char inASCII ) {
             break;
         case 'h':
         case 'H':
-            if( ! mSayField.isFocused() ) {
+            if( ! mSayField.isFocused() && ! vogMode ) {
                 showHelp = ! showHelp;
                 }
             break;
